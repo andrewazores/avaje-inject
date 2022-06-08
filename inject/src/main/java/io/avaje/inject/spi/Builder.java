@@ -1,7 +1,7 @@
 package io.avaje.inject.spi;
 
 import io.avaje.inject.BeanScope;
-import jakarta.inject.Provider;
+import javax.inject.Provider;
 
 import java.lang.reflect.Type;
 import java.util.List;
