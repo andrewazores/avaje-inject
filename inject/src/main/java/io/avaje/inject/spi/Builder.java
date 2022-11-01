@@ -99,32 +99,82 @@ public interface Builder {
   void addInjector(Consumer<Builder> injector);
 
   /**
+   * Get a dependency.
+   */
+  <T> T get(Class<T> cls);
+
+  /**
+   * Get a named dependency.
+   */
+  <T> T get(Class<T> cls, String name);
+
+  /**
+   * Get a dependency for the generic type.
+   */
+  <T> T get(Type cls);
+
+  /**
+   * Get a named dependency for the generic type.
+   */
+  <T> T get(Type cls, String name);
+
+  /**
    * Get an optional dependency.
+   */
+  <T> Optional<T> getOptional(Class<T> cls);
+
+  /**
+   * Get an optional named dependency.
+   */
+  <T> Optional<T> getOptional(Class<T> cls, String name);
+
+  /**
+   * Get an optional dependency for the generic type.
    */
   <T> Optional<T> getOptional(Type cls);
 
   /**
-   * Get an optional named dependency.
+   * Get an optional named dependency for the generic type.
    */
   <T> Optional<T> getOptional(Type cls, String name);
 
   /**
    * Get an optional dependency potentially returning null.
    */
-  <T> T getNullable(Type cls);
+  <T> T getNullable(Class<T> cls);
 
   /**
    * Get an optional named dependency potentially returning null.
+   */
+  <T> T getNullable(Class<T> cls, String name);
+
+  /**
+   * Get an optional dependency potentially returning null for the generic type.
+   */
+  <T> T getNullable(Type cls);
+
+  /**
+   * Get an optional named dependency potentially returning null for the generic type.
    */
   <T> T getNullable(Type cls, String name);
 
   /**
    * Return Provider of T given the type.
    */
-  <T> Provider<T> getProvider(Type cls);
+  <T> Provider<T> getProvider(Class<T> cls);
 
   /**
    * Return Provider of T given the type and name.
+   */
+  <T> Provider<T> getProvider(Class<T> cls, String name);
+
+  /**
+   * Return Provider of T given the generic type.
+   */
+  <T> Provider<T> getProvider(Type cls);
+
+  /**
+   * Return Provider of T given the generic type and name.
    */
   <T> Provider<T> getProvider(Type cls, String name);
 
@@ -137,29 +187,34 @@ public interface Builder {
   <T> Provider<T> getProviderFor(Class<?> cls, Type type);
 
   /**
-   * Get a dependency.
-   */
-  <T> T get(Type cls);
-
-  /**
-   * Get a named dependency.
-   */
-  <T> T get(Type cls, String name);
-
-  /**
    * Get a list of dependencies for the type.
    */
-  <T> List<T> list(Type interfaceType);
+  <T> List<T> list(Class<T> type);
+
+  /**
+   * Get a list of dependencies for the generic type.
+   */
+  <T> List<T> list(Type type);
 
   /**
    * Get a set of dependencies for the type.
    */
-  <T> Set<T> set(Type interfaceType);
+  <T> Set<T> set(Class<T> type);
 
   /**
-   * Return a map of dependencies keyed by qualifier name.
+   * Get a set of dependencies for the generic type.
    */
-  <T> Map<String, T> map(Type interfaceType);
+  <T> Set<T> set(Type type);
+
+  /**
+   * Return a map of dependencies for the type keyed by qualifier name.
+   */
+  <T> Map<String, T> map(Class<T> type);
+
+  /**
+   * Return a map of dependencies for the generic type keyed by qualifier name.
+   */
+  <T> Map<String, T> map(Type type);
 
   /**
    * Build and return the bean scope.
