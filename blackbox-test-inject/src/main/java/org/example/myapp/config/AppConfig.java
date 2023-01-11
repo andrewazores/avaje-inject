@@ -1,12 +1,11 @@
 package org.example.myapp.config;
 
-import io.avaje.inject.Bean;
-import io.avaje.inject.Component;
-import io.avaje.inject.Factory;
-import io.avaje.inject.Prototype;
+import io.avaje.inject.*;
 import javax.inject.Inject;
-import javax.inject.Provider;
+import javax.inject.Named;
 import org.example.myapp.HelloData;
+
+import java.util.Optional;
 
 @Factory
 public class AppConfig {
@@ -35,19 +34,74 @@ public class AppConfig {
     return new Generated();
   }
 
+  @Secondary
+  @Bean
+  public MySecType generalSecondary() {
+    return new MySecType();
+  }
+
+  @Secondary
+  @Bean
+  public Optional<MySecOptType> optionalSecondary() {
+    return Optional.of(new MySecOptType());
+  }
+
+  @Primary
+  @Bean
+  public MyPrim primaryBean() {
+    return new MyPrim("prime");
+  }
+
+  @Named("notPrimary")
+  @Bean
+  public MyPrim notPrimaryBean() {
+    return new MyPrim("notPrimary");
+  }
+
+  @Bean
+  public Provider provider() {
+    return new Provider();
+  }
+
+  @Bean
+  public MyGen<String> myGen() {
+    return new MyGen<String>();
+  }
+
   public static class Builder {
   }
 
   public static class Generated {
   }
 
+  public static class MySecType {
+  }
+
+  public static class MySecOptType {
+  }
+
+  public static class Provider {
+
+  }
+
+  public static class MyGen<T> {
+
+  }
+
+  public static class MyPrim {
+    public final String val;
+    public MyPrim(String val) {
+      this.val = val;
+    }
+  }
+
   @Component
   public static class BuilderUser {
 
-    final Provider<Builder> builderProvider;
+    final javax.inject.Provider<Builder> builderProvider;
 
     @Inject
-    public BuilderUser(Provider<Builder> builderProvider) {
+    public BuilderUser(javax.inject.Provider<Builder> builderProvider) {
       this.builderProvider = builderProvider;
     }
 

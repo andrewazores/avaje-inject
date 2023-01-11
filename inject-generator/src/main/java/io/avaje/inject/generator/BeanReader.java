@@ -9,7 +9,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import java.util.*;
 
-class BeanReader {
+final class BeanReader {
 
   private final TypeElement beanType;
   private final String shortName;
@@ -23,7 +23,7 @@ class BeanReader {
   private final Element postConstructMethod;
   private final Element preDestroyMethod;
 
-  private final Set<String> importTypes = new TreeSet<>();
+  private final ImportTypeMap importTypes = new ImportTypeMap();
   private final BeanRequestParams requestParams;
   private final TypeReader typeReader;
   private final boolean prototype;
@@ -205,10 +205,15 @@ class BeanReader {
     }
     writer.append("      ");
     if (isExtraInjectionRequired() || hasLifecycleMethods()) {
-      writer.append("%s $bean = ", shortName);
+      writer.append("var $bean = ");
     }
-    String flags = primary ? "Primary" : secondary ? "Secondary" : "";
-    writer.append("builder.register%s(bean);", flags).eol();
+    writer.append("builder.");
+    if (primary) {
+      writer.append("asPrimary().");
+    } else if (secondary) {
+      writer.append("asSecondary().");
+    }
+    writer.append("register(bean);").eol();
   }
 
   void addLifecycleCallbacks(Append writer, String indent) {
@@ -248,10 +253,7 @@ class BeanReader {
       if (!genericTypes.isEmpty()) {
         importTypes.add(Constants.TYPE);
         importTypes.add(Constants.GENERICTYPE);
-        importTypes.add(Constants.PROVIDER);
-        for (GenericType genericType : genericTypes) {
-          genericType.addImports(importTypes);
-        }
+        // TYPE_ generic types are fully qualified
       }
     }
     checkImports();
@@ -261,17 +263,12 @@ class BeanReader {
     if (!suppressBuilderImport) {
       importTypes.add(Constants.BUILDER);
     }
-    return importTypes;
+    return importTypes.forImport();
   }
 
   private void checkImports() {
-    for (String type : importTypes) {
-      if (type.endsWith(".Builder")) {
-        suppressBuilderImport = true;
-      } else if (type.endsWith(".Generated")) {
-        suppressGeneratedImport = true;
-      }
-    }
+    suppressBuilderImport = importTypes.containsShortName("Builder");
+    suppressGeneratedImport = importTypes.containsShortName("Generated");
   }
 
   String builderType() {
@@ -343,7 +340,7 @@ class BeanReader {
     }
     requestParams.writeRequestCreate(writer);
     writer.resetNextName();
-    writer.append("    %s bean = new %s(", shortName, shortName);
+    writer.append("    var bean = new %s(", shortName);
     if (constructor != null) {
       constructor.writeRequestConstructor(writer);
     }

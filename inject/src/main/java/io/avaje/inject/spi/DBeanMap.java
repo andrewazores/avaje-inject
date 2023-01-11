@@ -1,5 +1,6 @@
 package io.avaje.inject.spi;
 
+import io.avaje.inject.BeanEntry;
 import io.avaje.inject.BeanScope;
 import javax.inject.Provider;
 
@@ -10,13 +11,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.avaje.inject.BeanEntry.SUPPLIED;
-
 /**
  * Map of types (class types, interfaces and annotations) to a DContextEntry where the
  * entry holds a list of bean instances for that type.
  */
-class DBeanMap {
+final class DBeanMap {
 
   private final Map<String, DContextEntry> beans = new LinkedHashMap<>();
 
@@ -44,32 +43,30 @@ class DBeanMap {
   /**
    * Add test double supplied beans.
    */
-  @SuppressWarnings("rawtypes")
   void add(List<SuppliedBean> suppliedBeans) {
     for (SuppliedBean suppliedBean : suppliedBeans) {
       addSuppliedBean(suppliedBean);
     }
   }
 
-  @SuppressWarnings("rawtypes")
   private void addSuppliedBean(SuppliedBean supplied) {
     Type suppliedType = supplied.type();
-    DContextEntryBean entryBean = DContextEntryBean.of(supplied.bean(), supplied.name(), SUPPLIED);
+    DContextEntryBean entryBean = DContextEntryBean.of(supplied.source(), supplied.name(), supplied.priority());
     beans.computeIfAbsent(suppliedType.getTypeName(), s -> new DContextEntry()).add(entryBean);
     for (Class<?> anInterface : supplied.interfaces()) {
       beans.computeIfAbsent(anInterface.getTypeName(), s -> new DContextEntry()).add(entryBean);
     }
   }
 
-  void register(int flag, Object bean) {
-    DContextEntryBean entryBean = DContextEntryBean.of(bean, nextBean.name, flag);
+  void register(Object bean) {
+    DContextEntryBean entryBean = DContextEntryBean.of(bean, nextBean.name, nextBean.priority);
     for (Type type : nextBean.types) {
       beans.computeIfAbsent(type.getTypeName(), s -> new DContextEntry()).add(entryBean);
     }
   }
 
-  void register(int flag, Provider<?> provider) {
-    DContextEntryBean entryBean = DContextEntryBean.provider(provider, nextBean.name, flag);
+  void register(Provider<?> provider) {
+    DContextEntryBean entryBean = DContextEntryBean.provider(nextBean.prototype, provider, nextBean.name, nextBean.priority);
     for (Type type : nextBean.types) {
       beans.computeIfAbsent(type.getTypeName(), s -> new DContextEntry()).add(entryBean);
     }
@@ -178,6 +175,20 @@ class DBeanMap {
   }
 
   /**
+   * Set the priority for the next bean to register.
+   */
+  void nextPriority(int priority) {
+    nextBean.priority = priority;
+  }
+
+  /**
+   * Set the next bean to register as having Prototype scope.
+   */
+  void nextPrototype() {
+    nextBean.prototype = true;
+  }
+
+  /**
    * Return the types of the bean being processed/registered.
    */
   NextBean next() {
@@ -187,6 +198,8 @@ class DBeanMap {
   static class NextBean {
     final String name;
     final Type[] types;
+    int priority = BeanEntry.NORMAL;
+    boolean prototype;
 
     NextBean(String name, Type[] types) {
       this.name = name;

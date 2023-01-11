@@ -4,7 +4,7 @@ import javax.lang.model.element.Element;
 import java.util.List;
 import java.util.Set;
 
-class FieldReader {
+final class FieldReader {
 
   private final Element element;
   private final String name;
@@ -38,7 +38,7 @@ class FieldReader {
     return element.getSimpleName().toString();
   }
 
-  void addImports(Set<String> importTypes) {
+  void addImports(ImportTypeMap importTypes) {
     type.addImports(importTypes);
   }
 

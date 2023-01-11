@@ -8,7 +8,7 @@ import java.util.Set;
 /**
  * A type with generic parameters and potentially nested.
  */
-class GenericType {
+final class GenericType {
 
   /**
    * Trim off generic wildcard from the raw type if present.
@@ -97,7 +97,7 @@ class GenericType {
   }
 
 
-  void addImports(Set<String> importTypes) {
+  void addImports(ImportTypeMap importTypes) {
     final String type = trimExtends();
     if (includeInImports(type)) {
       importTypes.add(type);

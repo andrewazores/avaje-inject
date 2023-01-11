@@ -5,7 +5,7 @@ import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.io.Writer;
 
-class SimpleBeanProxyWriter {
+final class SimpleBeanProxyWriter {
 
   private final BeanReader beanReader;
   private final ProcessingContext context;
@@ -108,7 +108,7 @@ class SimpleBeanProxyWriter {
   private void writeClassStart() {
     writer.append(Constants.AT_PROXY).eol();
     writer.append(Constants.AT_GENERATED).eol();
-    writer.append("public class %s%s extends %s {", shortName, suffix, shortName).eol().eol();
+    writer.append("public final class %s%s extends %s {", shortName, suffix, shortName).eol().eol();
   }
 
   private Writer createFileWriter() throws IOException {

@@ -13,20 +13,20 @@ class DContextEntryBean {
   /**
    * Create taking into account if it is a Provider or the bean itself.
    *
-   * @param bean The bean itself or provider of the bean
+   * @param source The bean itself or provider of the bean
    * @param name The optional name for the bean
    * @param flag The flag for primary, secondary or normal
    */
-  static DContextEntryBean of(Object bean, String name, int flag) {
-    if (bean instanceof Provider) {
-      return new Prov((Provider<?>)bean, name, flag);
+  static DContextEntryBean of(Object source, String name, int flag) {
+    if (source instanceof Provider) {
+      return new ProtoProvider((Provider<?>)source, name, flag);
     } else {
-      return new DContextEntryBean(bean, name, flag);
+      return new DContextEntryBean(source, name, flag);
     }
   }
 
-  static DContextEntryBean provider(Provider<?> provider, String name, int flag) {
-      return new Prov(provider, name, flag);
+  static DContextEntryBean provider(boolean prototype, Provider<?> provider, String name, int flag) {
+    return prototype ? new ProtoProvider(provider, name, flag) : new OnceProvider(provider, name, flag);
   }
 
   protected final Object source;
@@ -102,13 +102,13 @@ class DContextEntryBean {
   }
 
   /**
-   * Provider based entry - provider controls the scope of the provided bean.
+   * Prototype scope Provider based entry.
    */
-  static final class Prov extends DContextEntryBean {
+  static final class ProtoProvider extends DContextEntryBean {
 
     private final Provider<?> provider;
 
-    private Prov(Provider<?> provider, String name, int flag) {
+    private ProtoProvider(Provider<?> provider, String name, int flag) {
       super(provider, name, flag);
       this.provider = provider;
     }
@@ -121,6 +121,30 @@ class DContextEntryBean {
     @Override
     Object bean() {
       return provider.get();
+    }
+  }
+
+  /**
+   * Single instance scoped Provider based entry.
+   */
+  static final class OnceProvider extends DContextEntryBean {
+
+    private final Provider<?> provider;
+    private Object bean;
+
+    private OnceProvider(Provider<?> provider, String name, int flag) {
+      super(provider, name, flag);
+      this.provider = provider;
+    }
+
+    @Override
+    Object bean() {
+      synchronized (this) {
+        if (bean == null) {
+          bean = provider.get();
+        }
+        return bean;
+      }
     }
   }
 }

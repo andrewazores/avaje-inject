@@ -1,9 +1,8 @@
 package io.avaje.inject.generator;
 
 import javax.lang.model.element.Element;
-import java.util.Set;
 
-class AspectPair implements Comparable<AspectPair> {
+final class AspectPair implements Comparable<AspectPair> {
 
   private final String target;
   private final int ordering;
@@ -21,7 +20,7 @@ class AspectPair implements Comparable<AspectPair> {
     return target;
   }
 
-  void addImports(Set<String> importTypes) {
+  void addImports(ImportTypeMap importTypes) {
     importTypes.add(target);
     importTypes.add(annotationFullName);
   }

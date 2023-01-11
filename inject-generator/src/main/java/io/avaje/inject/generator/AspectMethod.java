@@ -6,7 +6,7 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import java.util.*;
 
-class AspectMethod {
+final class AspectMethod {
 
   private final List<AspectPair> aspectPairs;
   private final ExecutableElement method;
@@ -49,7 +49,7 @@ class AspectMethod {
     return rawReturn.equals("void");
   }
 
-  void addImports(Set<String> importTypes) {
+  void addImports(ImportTypeMap importTypes) {
     for (AspectPair aspect : aspectPairs) {
       aspect.addImports(importTypes);
     }

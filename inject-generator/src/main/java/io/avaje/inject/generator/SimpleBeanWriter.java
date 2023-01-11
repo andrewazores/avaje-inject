@@ -10,7 +10,7 @@ import java.util.Set;
 /**
  * Write the source code for the bean.
  */
-class SimpleBeanWriter {
+final class SimpleBeanWriter {
 
   private static final String CODE_COMMENT = "/**\n * Generated source - dependency injection builder for %s.\n */";
   private static final String CODE_COMMENT_FACTORY = "/**\n * Generated source - dependency injection factory for request scoped %s.\n */";
@@ -73,7 +73,8 @@ class SimpleBeanWriter {
     if (!genericTypes.isEmpty()) {
       for (GenericType type : genericTypes) {
         writer.append("  public static final Type TYPE_%s = new GenericType<", type.shortName());
-        type.writeShort(writer);
+        // use fully qualified types here rather than use type.writeShort(writer)
+        writer.append(type.toString());
         writer.append(">(){}.type();").eol();
       }
       writer.eol();
@@ -100,7 +101,9 @@ class SimpleBeanWriter {
     method.buildAddFor(writer);
     writer.append(method.builderGetFactory()).eol();
     if (method.isProtoType()) {
-      method.builderAddProtoBean(writer);
+      method.builderAddBeanProvider(writer);
+    } else if (method.isUseProviderForSecondary()) {
+      method.builderAddBeanProvider(writer);
     } else {
       method.builderBuildBean(writer);
       method.builderBuildAddBean(writer);
@@ -128,8 +131,7 @@ class SimpleBeanWriter {
     beanReader.buildAddFor(writer);
     if (beanReader.prototype()) {
       indent += "  ";
-      writer.append("      // prototype scope so register provider").eol();
-      writer.append("      builder.registerProvider(() -> {", shortName, shortName).eol();
+      writer.append("      builder.asPrototype().registerProvider(() -> {", shortName, shortName).eol();
     }
     writeCreateBean(constructor);
     beanReader.buildRegister(writer);
@@ -156,7 +158,7 @@ class SimpleBeanWriter {
 
   String indent = "     ";
   private void writeCreateBean(MethodReader constructor) {
-    writer.append("%s %s bean = new %s(", indent, shortName, shortName);
+    writer.append(indent).append(" var bean = new %s(", shortName);
     // add constructor dependencies
     writeMethodParams("builder", constructor);
   }
@@ -225,7 +227,7 @@ class SimpleBeanWriter {
     if (beanReader.getBeanType().getNestingKind().isNested()) {
       shortName = shortName.replace(".", "$");
     }
-    writer.append("public class ").append(shortName).append(suffix).append(" ");
+    writer.append("public final class ").append(shortName).append(suffix).append(" ");
     if (beanReader.isRequestScopedController()) {
       writer.append("implements ");
       beanReader.factoryInterface(writer);

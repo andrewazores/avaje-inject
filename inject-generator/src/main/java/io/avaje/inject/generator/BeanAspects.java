@@ -5,7 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-class BeanAspects {
+final class BeanAspects {
 
   static final BeanAspects EMPTY = new BeanAspects();
 
@@ -30,7 +30,7 @@ class BeanAspects {
     return targets;
   }
 
-  void extraImports(Set<String> importTypes) {
+  void extraImports(ImportTypeMap importTypes) {
     for (AspectMethod aspectMethod : aspectMethods) {
       aspectMethod.addImports(importTypes);
     }

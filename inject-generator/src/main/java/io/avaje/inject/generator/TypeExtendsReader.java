@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * Read the inheritance types for a given bean type.
  */
-class TypeExtendsReader {
+final class TypeExtendsReader {
 
   private static final String JAVA_LANG_OBJECT = "java.lang.Object";
   private final GenericType baseGenericType;
@@ -28,11 +28,11 @@ class TypeExtendsReader {
    */
   private String qualifierName;
 
-  TypeExtendsReader(GenericType baseGenericType, TypeElement baseType, ProcessingContext context, boolean factory) {
+  TypeExtendsReader(GenericType baseGenericType, TypeElement baseType, ProcessingContext context, boolean factory, ImportTypeMap importTypes) {
     this.baseGenericType = baseGenericType;
     this.baseType = baseType;
     this.context = context;
-    this.extendsInjection = new TypeExtendsInjection(baseType, context, factory);
+    this.extendsInjection = new TypeExtendsInjection(baseType, context, factory, importTypes);
     this.beanSimpleName = baseType.getSimpleName().toString();
     this.baseTypeRaw = Util.unwrapProvider(baseGenericType.toString());
   }

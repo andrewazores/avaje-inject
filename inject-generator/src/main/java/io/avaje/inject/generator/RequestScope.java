@@ -7,7 +7,7 @@ import java.util.Set;
 /**
  * Handling detection of request scoped dependencies and appropriate BeanFactory generation.
  */
-class RequestScope {
+final class RequestScope {
 
   private static final String JEX_CONTEXT = "io.avaje.jex.Context";
   private static final String JAVALIN_CONTEXT = "io.javalin.http.Context";
@@ -61,7 +61,7 @@ class RequestScope {
     /**
      * Add appropriate imports.
      */
-    void addImports(Set<String> importTypes);
+    void addImports(ImportTypeMap importTypes);
 
     /**
      * Add dependencies and create method.
@@ -123,7 +123,7 @@ class RequestScope {
     }
 
     @Override
-    public void addImports(Set<String> importTypes) {
+    public void addImports(ImportTypeMap importTypes) {
       importTypes.add(Constants.BEAN_FACTORY);
       importTypes.add(contextType);
     }
@@ -158,7 +158,7 @@ class RequestScope {
     }
 
     @Override
-    public void addImports(Set<String> importTypes) {
+    public void addImports(ImportTypeMap importTypes) {
       importTypes.add(Constants.BEAN_FACTORY2);
       importTypes.add(reqType);
       importTypes.add(resType);

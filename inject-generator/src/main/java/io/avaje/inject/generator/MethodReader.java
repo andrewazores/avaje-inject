@@ -1,6 +1,9 @@
 package io.avaje.inject.generator;
 
 import io.avaje.inject.Bean;
+import io.avaje.inject.Primary;
+import io.avaje.inject.Prototype;
+import io.avaje.inject.Secondary;
 
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
@@ -8,12 +11,11 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-class MethodReader {
+final class MethodReader {
 
   private static final String CODE_COMMENT_BUILD_FACTORYBEAN = "  /**\n   * Create and register %s via factory bean method %s#%s().\n   */";
 
@@ -21,6 +23,8 @@ class MethodReader {
   private final String factoryType;
   private final String methodName;
   private final boolean prototype;
+  private final boolean primary;
+  private final boolean secondary;
   private final String returnTypeRaw;
   private final GenericType genericType;
   private final String shortName;
@@ -34,14 +38,22 @@ class MethodReader {
   private final TypeReader typeReader;
   private final boolean optionalType;
 
-  MethodReader(ProcessingContext context, ExecutableElement element, TypeElement beanType) {
-    this(context, element, beanType, null, null, false);
+  MethodReader(ProcessingContext context, ExecutableElement element, TypeElement beanType, ImportTypeMap importTypes) {
+    this(context, element, beanType, null, null, importTypes);
   }
 
-  MethodReader(ProcessingContext context, ExecutableElement element, TypeElement beanType, Bean bean, String qualifierName, boolean prototype) {
+  MethodReader(ProcessingContext context, ExecutableElement element, TypeElement beanType, Bean bean, String qualifierName, ImportTypeMap importTypes) {
     this.isFactory = bean != null;
-    this.prototype = prototype;
     this.element = element;
+    if (isFactory) {
+      prototype = element.getAnnotation(Prototype.class) != null;
+      primary = element.getAnnotation(Primary.class) != null;
+      secondary = element.getAnnotation(Secondary.class) != null;
+    } else {
+      prototype = false;
+      primary = false;
+      secondary = false;
+    }
     this.methodName = element.getSimpleName().toString();
     TypeMirror returnMirror = element.getReturnType();
     String raw = returnMirror.toString();
@@ -67,7 +79,7 @@ class MethodReader {
       this.initMethod = initMethod;
       this.destroyMethod = destroyMethod;
     } else {
-      this.typeReader = new TypeReader(genericType, returnElement, context);
+      this.typeReader = new TypeReader(genericType, returnElement, context, importTypes);
       typeReader.process();
       MethodLifecycleReader lifecycleReader = new MethodLifecycleReader(returnElement, initMethod, destroyMethod);
       this.initMethod = lifecycleReader.initMethod();
@@ -130,18 +142,16 @@ class MethodReader {
   }
 
   String builderGetFactory() {
-    return String.format("      %s factory = builder.get(%s.class);", factoryShortName, factoryShortName);
+    return String.format("      var factory = builder.get(%s.class);", factoryShortName);
   }
 
   void builderBuildBean(Append writer) {
     writer.append("      ");
     if (isVoid) {
-      writer.append(String.format("factory.%s(", methodName));
+      writer.append("factory.%s(", methodName);
     } else {
-      String beanType = optionalType ? String.format("Optional<%s>", shortName) : shortName;
       String beanName = optionalType ? "optionalBean" : "bean";
-      writer.append(beanType);
-      writer.append(String.format(" %s = factory.%s(", beanName, methodName));
+      writer.append("var %s = factory.%s(", beanName, methodName);
     }
     for (int i = 0; i < params.size(); i++) {
       if (i > 0) {
@@ -152,7 +162,7 @@ class MethodReader {
     writer.append(");").eol();
   }
 
-  public void builderAddProtoBean(Append writer) {
+  public void builderAddBeanProvider(Append writer) {
     if (isVoid) {
       writer.append("Error - void @Prototype method ?").eol();
       return;
@@ -162,8 +172,11 @@ class MethodReader {
       return;
     }
     String indent = "    ";
-    writer.append(indent).append("  // prototype scope bean method").eol();
-    writer.append(indent).append("  builder.registerProvider(() -> {").eol();
+    if (prototype) {
+      writer.append(indent).append("  builder.asPrototype().registerProvider(() -> {").eol();
+    } else {
+      writer.append(indent).append("  builder.asSecondary().registerProvider(() -> {").eol();
+    }
     writer.append("%s    return ", indent);
     writer.append(String.format("factory.%s(", methodName));
     for (int i = 0; i < params.size(); i++) {
@@ -182,13 +195,19 @@ class MethodReader {
       String indent = optionalType ? "        " : "      ";
       if (optionalType) {
         writer.append("      if (optionalBean.isPresent()) {").eol();
-        writer.append("        %s bean = optionalBean.get();", shortName).eol();
+        writer.append("        var bean = optionalBean.get();").eol();
       }
       writer.append(indent);
       if (hasLifecycleMethods()) {
-        writer.append("%s $bean = ", shortName);
+        writer.append("var $bean = ");
       }
-      writer.append("builder.register(bean);").eol();
+      writer.append("builder");
+      if (primary) {
+        writer.append(".asPrimary()");
+      } else if (secondary) {
+        writer.append(".asSecondary()");
+      }
+      writer.append(".register(bean);").eol();
       if (notEmpty(initMethod)) {
         writer.append(indent).append("builder.addPostConstruct($bean::%s);", initMethod).eol();
       }
@@ -211,18 +230,13 @@ class MethodReader {
     return value != null && !value.isEmpty();
   }
 
-  void addImports(Set<String> importTypes) {
+  void addImports(ImportTypeMap importTypes) {
     for (MethodParam param : params) {
       param.addImports(importTypes);
     }
-    if (isFactory) {
-      genericType.addImports(importTypes);
-    }
+    // TYPE_ generic types are fully qualified
     if (optionalType) {
       importTypes.add(Constants.OPTIONAL);
-    }
-    if (typeReader != null) {
-      typeReader.addImports(importTypes);
     }
   }
 
@@ -278,6 +292,10 @@ class MethodReader {
 
   boolean isProtoType() {
     return prototype;
+  }
+
+  boolean isUseProviderForSecondary() {
+    return secondary && !optionalType;
   }
 
   boolean isPublic() {
@@ -392,11 +410,8 @@ class MethodReader {
       return new Dependency(paramType, utilType.isCollection());
     }
 
-    void addImports(Set<String> importTypes) {
+    void addImports(ImportTypeMap importTypes) {
       fullGenericType.addImports(importTypes);
-      if (genericType.isGenericType()) {
-        importTypes.add(Constants.PROVIDER);
-      }
     }
 
     void checkRequest(BeanRequestParams requestParams) {

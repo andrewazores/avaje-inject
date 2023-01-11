@@ -7,13 +7,13 @@ import java.util.Set;
 /**
  * Helper for building the registration types.
  */
-class TypeAppender {
+final class TypeAppender {
 
-  private final Set<String> importTypes;
+  private final ImportTypeMap importTypes;
   private final Set<String> types = new LinkedHashSet<>();
   private final Set<GenericType> genericTypes = new LinkedHashSet<>();
 
-  TypeAppender(Set<String> importTypes) {
+  TypeAppender(ImportTypeMap importTypes) {
     this.importTypes = importTypes;
   }
 
@@ -37,8 +37,8 @@ class TypeAppender {
   }
 
   void addSimpleType(String classType) {
-    importTypes.add(classType);
-    types.add(Util.shortName(classType) + ".class");
+    String shortName = importTypes.add(classType);
+    types.add(shortName + ".class");
   }
 
   private void addGenericType(GenericType genericType) {

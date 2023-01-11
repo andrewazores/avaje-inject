@@ -13,7 +13,7 @@ import java.util.TreeSet;
 /**
  * Write the source code for the factory.
  */
-class SimpleModuleWriter {
+final class SimpleModuleWriter {
 
   private static final String CODE_COMMENT_FACTORY =
     "/**\n" +
@@ -171,7 +171,7 @@ class SimpleModuleWriter {
     scopeInfo.buildAtInjectModule(writer);
 
     String interfaceType = scopeInfo.type().type();
-    writer.append("public class %s implements %s {", shortName, interfaceType).eol().eol();
+    writer.append("public final class %s implements %s {", shortName, interfaceType).eol().eol();
     scopeInfo.buildFields(writer);
     if (scopeInfo.addModuleConstructor()) {
       writeConstructor();
