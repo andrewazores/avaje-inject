@@ -5,7 +5,7 @@ import io.avaje.inject.spi.*;
 import io.avaje.inject.spi.Module;
 import io.avaje.lang.NonNullApi;
 import io.avaje.lang.Nullable;
-import jakarta.inject.Provider;
+import javax.inject.Provider;
 
 import java.lang.System.Logger.Level;
 import java.lang.reflect.Type;
