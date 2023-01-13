@@ -17,6 +17,7 @@ final class MetaDataOrdering {
   private final Map<String, ProviderList> providers = new HashMap<>();
   private final List<DependencyLink> circularDependencies = new ArrayList<>();
   private final Set<String> missingDependencyTypes = new LinkedHashSet<>();
+  private final Set<String> autoRequires = new TreeSet<>();
 
   MetaDataOrdering(Collection<MetaData> values, ProcessingContext context, ScopeInfo scopeInfo) {
     this.context = context;
@@ -29,9 +30,9 @@ final class MetaDataOrdering {
         queue.add(metaData);
       }
       // register into map keyed by provider
-      providers.computeIfAbsent(metaData.getType(), s -> new ProviderList()).add(metaData);
-      for (String provide : metaData.getProvides()) {
-        providers.computeIfAbsent(provide, s -> new ProviderList()).add(metaData);
+      providerAdd(metaData.type()).add(metaData);
+      for (String provide : metaData.provides()) {
+        providerAdd(provide).add(metaData);
       }
     }
     externallyRequiredDependencies();
@@ -42,14 +43,26 @@ final class MetaDataOrdering {
    */
   private void externallyRequiredDependencies() {
     for (String requireType : scopeInfo.requires()) {
-      providers.computeIfAbsent(requireType, s -> new ProviderList());
+      providerAdd(requireType);
     }
+    for (String requireType : scopeInfo.pluginProvided()) {
+      providerAdd(requireType);
+    }
+  }
+
+  private ProviderList providerAdd(String requireType) {
+    return providers.computeIfAbsent(requireType, s -> new ProviderList());
   }
 
   int processQueue() {
     int count;
     do {
-      count = processQueueRound();
+      // first run without external dependencies from other modules
+      count = processQueueRound(false);
+    } while (count > 0);
+    do {
+      // run again including externally provided dependencies from other modules
+      count = processQueueRound(true);
     } while (count > 0);
 
     int remaining = queue.size();
@@ -67,12 +80,12 @@ final class MetaDataOrdering {
   private void detectCircularDependency(List<MetaData> remainder) {
     final List<DependencyLink> dependencyLinks = new ArrayList<>();
     for (MetaData metaData : remainder) {
-      final List<Dependency> dependsOn = metaData.getDependsOn();
+      final List<Dependency> dependsOn = metaData.dependsOn();
       if (dependsOn != null) {
         for (Dependency dependency : dependsOn) {
           final MetaData provider = findCircularDependency(remainder, dependency);
           if (provider != null) {
-            dependencyLinks.add(new DependencyLink(metaData, provider, dependency.getName()));
+            dependencyLinks.add(new DependencyLink(metaData, provider, dependency.name()));
           }
         }
       }
@@ -85,11 +98,11 @@ final class MetaDataOrdering {
 
   private MetaData findCircularDependency(List<MetaData> remainder, Dependency dependency) {
     for (MetaData metaData : remainder) {
-      if (metaData.getType().equals(dependency.getName())) {
+      if (metaData.type().equals(dependency.name())) {
         return metaData;
       }
-      final List<String> provides = metaData.getProvides();
-      if (provides != null && provides.contains(dependency.getName())) {
+      final List<String> provides = metaData.provides();
+      if (provides != null && provides.contains(dependency.name())) {
         return metaData;
       }
     }
@@ -120,11 +133,11 @@ final class MetaDataOrdering {
   }
 
   private void checkMissingDependencies(MetaData metaData) {
-    for (Dependency dependency : metaData.getDependsOn()) {
-      if (providers.get(dependency.getName()) == null && !scopeInfo.providedByOtherModule(dependency.getName())) {
-        TypeElement element = context.elementMaybe(metaData.getType());
-        context.logError(element, "No dependency provided for " + dependency + " on " + metaData.getType());
-        missingDependencyTypes.add(dependency.getName());
+    for (Dependency dependency : metaData.dependsOn()) {
+      if (providers.get(dependency.name()) == null && !scopeInfo.providedByOtherScope(dependency.name())) {
+        TypeElement element = context.elementMaybe(metaData.type());
+        context.logError(element, "No dependency provided for " + dependency + " on " + metaData.type());
+        missingDependencyTypes.add(dependency.name());
       }
     }
   }
@@ -139,7 +152,7 @@ final class MetaDataOrdering {
       if (!queue.isEmpty()) {
         context.logWarn("There are " + queue.size() + " beans with unsatisfied dependencies (assuming external dependencies)");
         for (MetaData m : queue) {
-          context.logWarn("Unsatisfied dependencies on %s dependsOn %s", m, m.getDependsOn());
+          context.logWarn("Unsatisfied dependencies on %s dependsOn %s", m, m.dependsOn());
         }
       }
     }
@@ -153,13 +166,13 @@ final class MetaDataOrdering {
     }
   }
 
-  private int processQueueRound() {
+  private int processQueueRound(boolean includeExternal) {
     // loop queue looking for entry that has all provides marked as included
     int count = 0;
     Iterator<MetaData> iterator = queue.iterator();
     while (iterator.hasNext()) {
       MetaData queuedMeta = iterator.next();
-      if (allDependenciesWired(queuedMeta)) {
+      if (allDependenciesWired(queuedMeta, includeExternal)) {
         orderedList.add(queuedMeta);
         queuedMeta.setWired();
         iterator.remove();
@@ -169,14 +182,19 @@ final class MetaDataOrdering {
     return count;
   }
 
-  private boolean allDependenciesWired(MetaData queuedMeta) {
-    for (Dependency dependency : queuedMeta.getDependsOn()) {
-      if (!Util.isProvider(dependency.getName())) {
+  private boolean allDependenciesWired(MetaData queuedMeta, boolean includeExternal) {
+    for (Dependency dependency : queuedMeta.dependsOn()) {
+      if (!Util.isProvider(dependency.name())) {
         // check non-provider dependency is satisfied
-        ProviderList providerList = providers.get(dependency.getName());
+        ProviderList providerList = providers.get(dependency.name());
         if (providerList == null) {
           if (!scopeInfo.providedByOther(dependency)) {
-            return false;
+            if (includeExternal && context.externallyProvided(dependency.name())) {
+              autoRequires.add(dependency.name());
+              queuedMeta.markWithExternalDependency();
+            } else {
+              return false;
+            }
           }
         } else {
           if (!providerList.isAllWired()) {
@@ -186,6 +204,10 @@ final class MetaDataOrdering {
       }
     }
     return true;
+  }
+
+  Set<String> autoRequires() {
+    return autoRequires;
   }
 
   List<MetaData> ordered() {
@@ -198,23 +220,6 @@ final class MetaDataOrdering {
       metaData.addImportTypes(importTypes);
     }
     return importTypes;
-  }
-
-  /**
-   * Return the MetaData for the bean that provides the (generic interface) dependency.
-   */
-  MetaData findProviderOf(String depend) {
-    for (MetaData metaData : orderedList) {
-      List<String> provides = metaData.getProvides();
-      if (provides != null) {
-        for (String provide : provides) {
-          if (provide.equals(depend)) {
-            return metaData;
-          }
-        }
-      }
-    }
-    return null;
   }
 
   /**

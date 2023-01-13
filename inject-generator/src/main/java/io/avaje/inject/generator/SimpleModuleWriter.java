@@ -65,6 +65,7 @@ final class SimpleModuleWriter {
     writer = new Append(createFileWriter());
     writePackage();
     writeStartClass();
+    writeProvides();
     writeClassesMethod();
     writeBuildMethod();
     writeBuildMethods();
@@ -89,12 +90,38 @@ final class SimpleModuleWriter {
     }
   }
 
+  private void writeProvides() {
+    Set<String> autoProvidesAspects = new TreeSet<>();
+    Set<String> autoProvides = new TreeSet<>();
+
+    for (MetaData metaData : ordering.ordered()) {
+      String forExternal = metaData.autoProvides();
+      if (forExternal != null && !forExternal.isEmpty()) {
+        if (Util.isAspectProvider(forExternal)) {
+          autoProvidesAspects.add(Util.extractAspectType(forExternal));
+        } else if (!forExternal.contains("<")) {
+          autoProvides.add(forExternal);
+        }
+      }
+    }
+    if (!autoProvides.isEmpty()) {
+      scopeInfo.buildAutoProvides(writer, autoProvides);
+    }
+    if (!autoProvidesAspects.isEmpty()) {
+      scopeInfo.buildAutoProvidesAspects(writer, autoProvidesAspects);
+    }
+    Set<String> autoRequires = ordering.autoRequires();
+    if (!autoRequires.isEmpty()) {
+      scopeInfo.buildAutoRequires(writer, autoRequires);
+    }
+  }
+
   private void writeClassesMethod() {
     Set<String> allClasses = distinctPublicClasses();
     writer.append("  @Override").eol();
     writer.append("  public Class<?>[] classes() {").eol();
     writer.append("    return new Class<?>[]{").eol();
-    for (String rawType : allClasses) {
+    for (String rawType : new TreeSet<>(allClasses)) {
       writer.append("      %s.class,", rawType).eol();
     }
     writer.append("    };").eol();
@@ -107,7 +134,7 @@ final class SimpleModuleWriter {
   private Set<String> distinctPublicClasses() {
     Set<String> publicClasses = new LinkedHashSet<>();
     for (MetaData metaData : ordering.ordered()) {
-      String rawType = metaData.getType();
+      String rawType = metaData.type();
       if (!"void".equals(rawType)) {
         String type = GenericType.parse(rawType).topType();
         TypeElement element = context.element(type);
@@ -130,7 +157,9 @@ final class SimpleModuleWriter {
     writer.append("    // create beans in order based on constructor dependencies").eol();
     writer.append("    // i.e. \"provides\" followed by \"dependsOn\"").eol();
     for (MetaData metaData : ordering.ordered()) {
-      writer.append("    build_%s();", metaData.getBuildName()).eol();
+      if (!metaData.isGenerateProxy()) {
+        writer.append("    build_%s();", metaData.buildName()).eol();
+      }
     }
     writer.append("  }").eol();
     writer.eol();
@@ -138,7 +167,7 @@ final class SimpleModuleWriter {
 
   private void writeBuildMethods() {
     for (MetaData metaData : ordering.ordered()) {
-      writer.append(metaData.buildMethod(ordering)).eol();
+      metaData.buildMethod(writer);
     }
   }
 
@@ -172,24 +201,11 @@ final class SimpleModuleWriter {
 
     String interfaceType = scopeInfo.type().type();
     writer.append("public final class %s implements %s {", shortName, interfaceType).eol().eol();
-    scopeInfo.buildFields(writer);
+    writer.append("  private Builder builder;").eol().eol();
     if (scopeInfo.addModuleConstructor()) {
       writeConstructor();
     }
-    writer.append("  @Override").eol();
-    writer.append("  public Class<?>[] provides() {").eol();
-    writer.append("    return provides;").eol();
-    writer.append("  }").eol().eol();
-
-    writer.append("  @Override").eol();
-    writer.append("  public Class<?>[] requires() {").eol();
-    writer.append("    return requires;").eol();
-    writer.append("  }").eol().eol();
-
-    writer.append("  @Override").eol();
-    writer.append("  public Class<?>[] requiresPackages() {").eol();
-    writer.append("    return requiresPackages;").eol();
-    writer.append("  }").eol().eol();
+    scopeInfo.buildProvides(writer);
   }
 
   private void writeWithBeans() {

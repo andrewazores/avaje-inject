@@ -45,6 +45,7 @@ final class ScopeInfo {
   private final List<BeanReader> beanReaders = new ArrayList<>();
   private final Set<String> readBeans = new HashSet<>();
   private final ProcessingContext context;
+  private final Set<String> pluginProvided = new HashSet<>();
   private final Set<String> requires = new LinkedHashSet<>();
   private final Set<String> provides = new LinkedHashSet<>();
   private final Set<String> requiresPackages = new LinkedHashSet<>();
@@ -90,6 +91,10 @@ final class ScopeInfo {
       '}';
   }
 
+  void pluginProvided(String pluginProvides) {
+    pluginProvided.add(pluginProvides);
+  }
+
   boolean includeSingleton() {
     return !ignoreSingleton;
   }
@@ -132,10 +137,6 @@ final class ScopeInfo {
     }
   }
 
-  TypeElement annotationType() {
-    return annotationType;
-  }
-
   JavaFileObject moduleFile() {
     return moduleFile;
   }
@@ -150,10 +151,6 @@ final class ScopeInfo {
 
   String moduleShortName() {
     return moduleShortName;
-  }
-
-  boolean isDefaultScope() {
-    return defaultScope;
   }
 
   String name() {
@@ -172,24 +169,29 @@ final class ScopeInfo {
     return requires;
   }
 
+  Set<String> pluginProvided() {
+    return pluginProvided;
+  }
+
   void writeBeanHelpers() {
     for (BeanReader beanReader : beanReaders) {
       try {
         if (!beanReader.isWrittenToFile()) {
-          SimpleBeanWriter writer = new SimpleBeanWriter(beanReader, context);
-          writer.write();
           if (beanReader.isGenerateProxy()) {
             SimpleBeanProxyWriter proxyWriter = new SimpleBeanProxyWriter(beanReader, context);
             proxyWriter.write();
+          } else {
+            SimpleBeanWriter writer = new SimpleBeanWriter(beanReader, context);
+            writer.write();
           }
           beanReader.setWrittenToFile();
         }
       } catch (FilerException e) {
-        context.logWarn("FilerException to write $DI class " + beanReader.getBeanType() + " " + e.getMessage());
+        context.logWarn("FilerException to write $DI class " + beanReader.beanType() + " " + e.getMessage());
 
       } catch (IOException e) {
         e.printStackTrace();
-        context.logError(beanReader.getBeanType(), "Failed to write $DI class");
+        context.logError(beanReader.beanType(), "Failed to write $DI class");
       }
     }
   }
@@ -259,7 +261,7 @@ final class ScopeInfo {
   void mergeMetaData() {
     for (BeanReader beanReader : beanReaders) {
       if (!beanReader.isRequestScopedController()) {
-        MetaData metaData = this.metaData.get(beanReader.getMetaKey());
+        MetaData metaData = this.metaData.get(beanReader.metaKey());
         if (metaData == null) {
           addMeta(beanReader);
         } else {
@@ -274,9 +276,9 @@ final class ScopeInfo {
    */
   private void addMeta(BeanReader beanReader) {
     MetaData meta = beanReader.createMeta();
-    metaData.put(meta.getKey(), meta);
+    metaData.put(meta.key(), meta);
     for (MetaData methodMeta : beanReader.createFactoryMethodMeta()) {
-      metaData.put(methodMeta.getKey(), methodMeta);
+      metaData.put(methodMeta.key(), methodMeta);
     }
   }
 
@@ -307,7 +309,7 @@ final class ScopeInfo {
         context.logError("Missing @DependencyMeta on method " + simpleName);
       } else {
         final MetaData metaData = new MetaData(meta);
-        this.metaData.put(metaData.getKey(), metaData);
+        this.metaData.put(metaData.key(), metaData);
       }
     }
   }
@@ -369,32 +371,47 @@ final class ScopeInfo {
     writer.append("}");
   }
 
-  private void buildClassArray(Append writer, Set<String> values) {
-    writer.append("new Class<?>[]");
-    writer.append("{");
-    if (!values.isEmpty()) {
-      int c = 0;
-      for (String value : values) {
-        if (c++ > 0) {
-          writer.append(",");
-        }
-        writer.append(value).append(".class");
-      }
+  void buildProvides(Append writer) {
+    if (!provides.isEmpty()) {
+      buildProvidesMethod(writer, "provides", provides);
     }
-    writer.append("}");
+    if (!requires.isEmpty()) {
+      buildProvidesMethod(writer, "requires", requires);
+    }
+    if (!requiresPackages.isEmpty()) {
+      buildProvidesMethod(writer, "requiresPackages", requiresPackages);
+    }
   }
 
-  void buildFields(Append writer) {
-    writer.append("  private final Class<?>[] provides = ");
-    buildClassArray(writer, provides);
-    writer.append(";").eol();
-    writer.append("  private final Class<?>[] requires = ");
-    buildClassArray(writer, requires);
-    writer.append(";").eol();
-    writer.append("  private final Class<?>[] requiresPackages = ");
-    buildClassArray(writer, requiresPackages);
-    writer.append(";").eol();
-    writer.append("  private Builder builder;").eol().eol();
+  private void buildProvidesMethod(Append writer, String fieldName, Set<String> types) {
+    writer.append("  @Override").eol();
+    writer.append("  public Class<?>[] %s() { return %s; }", fieldName, fieldName).eol();
+    writer.append("  private final Class<?>[] %s = new Class<?>[]{", fieldName).eol();
+    for (String rawType : types) {
+      writer.append("    %s.class,", rawType).eol();
+    }
+    writer.append("  };").eol().eol();
+  }
+
+  void buildAutoProvides(Append writer, Set<String> autoProvides) {
+    autoProvides.removeAll(provides);
+    if (!autoProvides.isEmpty()) {
+      buildProvidesMethod(writer, "autoProvides", autoProvides);
+    }
+  }
+
+  void buildAutoProvidesAspects(Append writer, Set<String> autoProvidesAspects) {
+    autoProvidesAspects.removeAll(provides);
+    if (!autoProvidesAspects.isEmpty()) {
+      buildProvidesMethod(writer, "autoProvidesAspects", autoProvidesAspects);
+    }
+  }
+
+  void buildAutoRequires(Append writer, Set<String> autoRequires) {
+    autoRequires.removeAll(requires);
+    if (!autoRequires.isEmpty()) {
+      buildProvidesMethod(writer, "autoRequires", autoRequires);
+    }
   }
 
   void readModuleMetaData(TypeElement moduleType) {
@@ -418,11 +435,11 @@ final class ScopeInfo {
    * Return true if the scope is a custom scope and the dependency is provided
    * by the "default" module. We could/should move to be tighter here at some point.
    */
-  boolean providedByOtherModule(String dependency) {
+  boolean providedByOtherScope(String dependency) {
     if (defaultScope) {
       return false;
     }
-    if (scopes.providedByDefaultModule(dependency)) {
+    if (scopes.providedByDefaultScope(dependency)) {
       return true;
     }
     return providesDependencyRecursive(dependency);
@@ -453,14 +470,14 @@ final class ScopeInfo {
    * Return true if this module provides the dependency (non-recursive, local only).
    */
   boolean providesDependencyLocally(String dependency) {
-    if (requires.contains(dependency)) {
+    if (requires.contains(dependency) || pluginProvided.contains(dependency)) {
       return true;
     }
     for (MetaData meta : metaData.values()) {
-      if (dependency.equals(meta.getType())) {
+      if (dependency.equals(meta.type())) {
         return true;
       }
-      final List<String> provides = meta.getProvides();
+      final List<String> provides = meta.provides();
       if (provides != null && !provides.isEmpty()) {
         for (String provide : provides) {
           if (dependency.equals(provide)) {
@@ -483,8 +500,8 @@ final class ScopeInfo {
 
   boolean providedByOther(Dependency dependency) {
     return dependency.isSoftDependency()
-      || providedByPackage(dependency.getName())
-      || providedByOtherModule(dependency.getName());
+      || providedByPackage(dependency.name())
+      || providedByOtherScope(dependency.name());
   }
 
   Set<String> initModuleDependencies(Set<String> importTypes) {

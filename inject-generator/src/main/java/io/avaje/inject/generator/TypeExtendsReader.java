@@ -1,6 +1,7 @@
 package io.avaje.inject.generator;
 
 import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
@@ -22,6 +23,7 @@ final class TypeExtendsReader {
   private final List<String> providesTypes = new ArrayList<>();
   private final String beanSimpleName;
   private final String baseTypeRaw;
+  private final boolean baseTypeIsInterface;
   private boolean closeable;
   /**
    * The implied qualifier name based on naming convention.
@@ -35,13 +37,14 @@ final class TypeExtendsReader {
     this.extendsInjection = new TypeExtendsInjection(baseType, context, factory, importTypes);
     this.beanSimpleName = baseType.getSimpleName().toString();
     this.baseTypeRaw = Util.unwrapProvider(baseGenericType.toString());
+    this.baseTypeIsInterface = baseType.getKind() == ElementKind.INTERFACE;
   }
 
-  GenericType getBaseType() {
+  GenericType baseType() {
     return baseGenericType;
   }
 
-  String getQualifierName() {
+  String qualifierName() {
     return qualifierName;
   }
 
@@ -49,31 +52,41 @@ final class TypeExtendsReader {
     return extendsInjection.hasAspects();
   }
 
-  List<FieldReader> getInjectFields() {
-    return extendsInjection.getInjectFields();
+  List<FieldReader> injectFields() {
+    return extendsInjection.injectFields();
   }
 
-  List<MethodReader> getInjectMethods() {
-    return extendsInjection.getInjectMethods();
+  List<MethodReader> injectMethods() {
+    return extendsInjection.injectMethods();
   }
 
-  List<MethodReader> getFactoryMethods() {
-    return extendsInjection.getFactoryMethods();
+  List<MethodReader> factoryMethods() {
+    return extendsInjection.factoryMethods();
   }
 
-  Element getPostConstructMethod() {
-    return extendsInjection.getPostConstructMethod();
+  Element postConstructMethod() {
+    return extendsInjection.postConstructMethod();
   }
 
-  Element getPreDestroyMethod() {
-    return extendsInjection.getPreDestroyMethod();
+  Element preDestroyMethod() {
+    return extendsInjection.preDestroyMethod();
   }
 
-  MethodReader getConstructor() {
-    return extendsInjection.getConstructor();
+  MethodReader constructor() {
+    return extendsInjection.constructor();
   }
 
-  List<String> getProvides() {
+  String autoProvides() {
+    if (baseTypeIsInterface) {
+      return baseTypeRaw;
+    }
+    if (!interfaceTypes.isEmpty()) {
+      return interfaceTypes.get(0);
+    }
+    return null;
+  }
+
+  List<String> provides() {
     return providesTypes;
   }
 

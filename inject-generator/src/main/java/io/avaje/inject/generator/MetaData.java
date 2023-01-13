@@ -32,6 +32,13 @@ final class MetaData {
    */
   private List<Dependency> dependsOn;
 
+  /**
+   * Type deemed to be candidate for providing to another external module.
+   */
+  private String autoProvides;
+  private boolean generateProxy;
+  private boolean usesExternalDependency;
+
   MetaData(DependencyMeta meta) {
     this.type = meta.type();
     this.name = trimName(meta.name());
@@ -39,6 +46,7 @@ final class MetaData {
     this.method = meta.method();
     this.provides = asList(meta.provides());
     this.dependsOn = Stream.of(meta.dependsOn()).map(Dependency::new).collect(Collectors.toList());
+    this.autoProvides = meta.autoProvides();
   }
 
   MetaData(String type, String name) {
@@ -54,11 +62,19 @@ final class MetaData {
     return (name == null) ? type : type + ":" + name;
   }
 
+  /**
+   * Return true if this is a component with Aspects applied to it.
+   * This means this type doesn't have a $DI but instead we have the $Proxy$DI.
+   */
+  boolean isGenerateProxy() {
+    return generateProxy;
+  }
+
   private String trimName(String name) {
     return "".equals(name) ? null : name;
   }
 
-  String getBuildName() {
+  String buildName() {
     if (Util.isVoid(type)) {
       return "void_" + Util.trimMethod(method);
     } else {
@@ -71,7 +87,7 @@ final class MetaData {
     }
   }
 
-  public String getKey() {
+  public String key() {
     if (Util.isVoid(type)) {
       return "method:" + method;
     }
@@ -102,26 +118,32 @@ final class MetaData {
   }
 
   void update(BeanReader beanReader) {
-    this.provides = beanReader.getProvides();
-    this.dependsOn = beanReader.getDependsOn();
+    this.provides = beanReader.provides();
+    this.dependsOn = beanReader.dependsOn();
+    this.autoProvides = beanReader.autoProvides();
+    this.generateProxy = beanReader.isGenerateProxy();
   }
 
-  String getType() {
+  String type() {
     return type;
   }
 
-  List<String> getProvides() {
+  List<String> provides() {
     return provides;
   }
 
-  List<Dependency> getDependsOn() {
+  List<Dependency> dependsOn() {
     return dependsOn;
+  }
+
+  String autoProvides() {
+    return autoProvides;
   }
 
   /**
    * Return the top level package for the bean and the interfaces it implements.
    */
-  String getTopPackage() {
+  String topPackage() {
     if (method == null || method.isEmpty()) {
       return Util.packageOf(type);
     }
@@ -132,43 +154,51 @@ final class MetaData {
   void addImportTypes(Set<String> importTypes) {
     if (hasMethod()) {
       importTypes.add(Util.classOfMethod(method));
-    } else {
+    } else if (!generateProxy) {
       importTypes.add(type + Constants.DI);
     }
   }
 
-  String buildMethod(MetaDataOrdering ordering) {
-    StringBuilder sb = new StringBuilder(200);
-    sb.append("  @DependencyMeta(type=\"").append(type).append("\"");
+  void buildMethod(Append append) {
+    if (generateProxy) {
+      return;
+    }
+    if (usesExternalDependency) {
+      append.append("  // uses external dependency").append(NEWLINE);
+    }
+    append.append("  @DependencyMeta(type=\"").append(type).append("\"");
     if (name != null) {
-      sb.append(", name=\"").append(name).append("\"");
+      append.append(", name=\"").append(name).append("\"");
     }
     if (hasMethod()) {
-      sb.append(", method=\"").append(method).append("\"");
+      append.append(", method=\"").append(method).append("\"");
     }
     if (!provides.isEmpty()) {
-      appendProvides(sb, "provides", provides);
+      appendProvides(append, "provides", provides);
     }
     if (!dependsOn.isEmpty()) {
-      appendProvides(sb, "dependsOn", dependsOn.stream().map(Dependency::dependsOn).collect(Collectors.toList()));
+      appendProvides(append, "dependsOn", dependsOn.stream().map(Dependency::dependsOn).collect(Collectors.toList()));
     }
-    sb.append(")").append(NEWLINE);
-    sb.append("  protected void build_").append(getBuildName()).append("() {").append(NEWLINE);
+    if (autoProvides != null && !autoProvides.isEmpty()) {
+      append.append(", autoProvides=\"").append(autoProvides).append("\"");
+    }
+    append.append(")").append(NEWLINE);
+    append.append("  private void build_").append(buildName()).append("() {").append(NEWLINE);
     if (hasMethod()) {
-      sb.append("    ").append(Util.shortMethod(method)).append("(builder");
+      append.append("    ").append(Util.shortMethod(method)).append("(builder");
     } else {
-      sb.append("    ").append(shortType).append(Constants.DI).append(".build(builder");
+      append.append("    ").append(shortType).append(Constants.DI).append(".build(builder");
     }
-    sb.append(");").append(NEWLINE);
-    sb.append("  }").append(NEWLINE);
-    return sb.toString();
+    append.append(");").append(NEWLINE);
+    append.append("  }").append(NEWLINE);
+    append.eol();
   }
 
   private boolean hasMethod() {
     return method != null && !method.isEmpty();
   }
 
-  private void appendProvides(StringBuilder sb, String attribute, List<String> types) {
+  private void appendProvides(Append sb, String attribute, List<String> types) {
     sb.append(", ").append(attribute).append("={");
     for (int i = 0; i < types.size(); i++) {
       if (i > 0) {
@@ -193,4 +223,14 @@ final class MetaData {
     this.method = method;
   }
 
+  void setAutoProvides(String autoProvides) {
+    this.autoProvides = autoProvides;
+  }
+
+  /**
+   * This depends on a dependency that comes from another module in the classpath.
+   */
+  void markWithExternalDependency() {
+    usesExternalDependency = true;
+  }
 }
