@@ -414,6 +414,13 @@ final class ScopeInfo {
     }
   }
 
+  void buildAutoRequiresAspects(Append writer, Set<String> autoRequires) {
+    autoRequires.removeAll(requires);
+    if (!autoRequires.isEmpty()) {
+      buildProvidesMethod(writer, "autoRequiresAspects", autoRequires);
+    }
+  }
+
   void readModuleMetaData(TypeElement moduleType) {
     InjectModule module = moduleType.getAnnotation(InjectModule.class);
     details(module.name(), moduleType);
@@ -473,20 +480,34 @@ final class ScopeInfo {
     if (requires.contains(dependency) || pluginProvided.contains(dependency)) {
       return true;
     }
+    final String aspectDependency = aspectDependency(dependency);
     for (MetaData meta : metaData.values()) {
       if (dependency.equals(meta.type())) {
         return true;
       }
-      final List<String> provides = meta.provides();
-      if (provides != null && !provides.isEmpty()) {
-        for (String provide : provides) {
-          if (dependency.equals(provide)) {
-            return true;
+      if (aspectDependency != null) {
+        if (aspectDependency.equals(meta.providesAspect())) {
+          return true;
+        }
+      } else {
+        final List<String> provides = meta.provides();
+        if (provides != null && !provides.isEmpty()) {
+          for (String provide : provides) {
+            if (dependency.equals(provide)) {
+              return true;
+            }
           }
         }
       }
     }
     return false;
+  }
+
+  private String aspectDependency(String dependency) {
+    if (Util.isAspectProvider(dependency)) {
+      return Util.extractAspectType(dependency);
+    }
+    return null;
   }
 
   boolean providedByPackage(String dependency) {

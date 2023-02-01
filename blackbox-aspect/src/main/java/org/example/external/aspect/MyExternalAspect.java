@@ -1,4 +1,4 @@
-package org.example.myapp.aspect;
+package org.example.external.aspect;
 
 import io.avaje.inject.aop.Aspect;
 
@@ -10,7 +10,5 @@ import java.lang.annotation.Target;
 @Aspect
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface MyAround {
-
-  String name() default "";
+public @interface MyExternalAspect {
 }

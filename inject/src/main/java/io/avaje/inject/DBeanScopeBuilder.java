@@ -338,12 +338,13 @@ final class DBeanScopeBuilder implements BeanScopeBuilder.ForTesting {
      */
     private boolean satisfiedDependencies(FactoryState factory) {
       return satisfiedDependencies(factory.requires())
-        && satisfiedDependencies(factory.requiresPackages())
-        && satisfiedDependencies(factory.autoRequires());
+          && satisfiedDependencies(factory.requiresPackages())
+          && satisfiedDependencies(factory.autoRequiresAspects())
+          && satisfiedDependencies(factory.autoRequires());
     }
 
     private boolean satisfiedDependencies(Class<?>[] requires) {
-      for (Class<?> dependency : requires) {
+      for (final Class<?> dependency : requires) {
         if (notProvided(dependency.getTypeName())) {
           return false;
         }
@@ -395,13 +396,18 @@ final class DBeanScopeBuilder implements BeanScopeBuilder.ForTesting {
       return factory.autoRequires();
     }
 
+    Class<?>[] autoRequiresAspects() {
+      return factory.autoRequiresAspects();
+    }
+
     @Override
     public String toString() {
       return factory.getClass().getTypeName();
     }
 
     boolean isRequiresEmpty() {
-      return isEmpty(factory.requires()) && isEmpty(factory.requiresPackages()) && isEmpty(factory.autoRequires());
+      return isEmpty(factory.requires()) && isEmpty(factory.requiresPackages())
+        && isEmpty(factory.autoRequires()) && isEmpty(factory.autoRequiresAspects());
     }
 
     boolean explicitlyProvides() {

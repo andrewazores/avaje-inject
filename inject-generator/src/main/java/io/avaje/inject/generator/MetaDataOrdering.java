@@ -18,6 +18,7 @@ final class MetaDataOrdering {
   private final List<DependencyLink> circularDependencies = new ArrayList<>();
   private final Set<String> missingDependencyTypes = new LinkedHashSet<>();
   private final Set<String> autoRequires = new TreeSet<>();
+  private final Set<String> autoRequiresAspects = new TreeSet<>();
 
   MetaDataOrdering(Collection<MetaData> values, ProcessingContext context, ScopeInfo scopeInfo) {
     this.context = context;
@@ -33,6 +34,10 @@ final class MetaDataOrdering {
       providerAdd(metaData.type()).add(metaData);
       for (String provide : metaData.provides()) {
         providerAdd(provide).add(metaData);
+      }
+      final String aspect = metaData.providesAspect();
+      if (aspect != null && !aspect.isEmpty()) {
+        providerAdd(Util.wrapAspect(aspect)).add(metaData);
       }
     }
     externallyRequiredDependencies();
@@ -184,23 +189,26 @@ final class MetaDataOrdering {
 
   private boolean allDependenciesWired(MetaData queuedMeta, boolean includeExternal) {
     for (Dependency dependency : queuedMeta.dependsOn()) {
-      if (!Util.isProvider(dependency.name())) {
+      final var dependencyName = dependency.name();
+      if (!Util.isProvider(dependencyName)) {
         // check non-provider dependency is satisfied
-        ProviderList providerList = providers.get(dependency.name());
+        ProviderList providerList = providers.get(dependencyName);
         if (providerList == null) {
           if (!scopeInfo.providedByOther(dependency)) {
-            if (includeExternal && context.externallyProvided(dependency.name())) {
-              autoRequires.add(dependency.name());
-              queuedMeta.markWithExternalDependency();
+            if (includeExternal && context.externallyProvided(dependencyName)) {
+              if (Util.isAspectProvider(dependencyName)) {
+                autoRequiresAspects.add(Util.extractAspectType(dependencyName));
+              } else {
+                autoRequires.add(dependencyName);
+              }
+              queuedMeta.markWithExternalDependency(dependencyName);
             } else {
               return false;
             }
           }
-        } else {
-          if (!providerList.isAllWired()) {
-            return false;
-          }
-        }
+        } else if (!providerList.isAllWired()) {
+        return false;
+      }
       }
     }
     return true;
@@ -208,6 +216,10 @@ final class MetaDataOrdering {
 
   Set<String> autoRequires() {
     return autoRequires;
+  }
+
+  Set<String> autoRequiresAspects() {
+    return autoRequiresAspects;
   }
 
   List<MetaData> ordered() {
