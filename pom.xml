@@ -39,6 +39,8 @@
         <activeByDefault>true</activeByDefault>
       </activation>
       <modules>
+        <module>inject-maven-plugin</module>
+        <module>blackbox-other</module>
         <module>blackbox-aspect</module>
         <module>blackbox-test-inject</module>
       </modules>
