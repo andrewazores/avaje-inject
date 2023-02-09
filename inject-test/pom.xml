@@ -124,7 +124,7 @@
             <path>
               <groupId>io.avaje</groupId>
               <artifactId>avaje-inject-generator</artifactId>
-              <version>7.12</version>
+              <version>${project.version}</version>
             </path>
           </annotationProcessorPaths>
         </configuration>
