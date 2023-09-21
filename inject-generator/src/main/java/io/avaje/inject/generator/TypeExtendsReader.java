@@ -128,7 +128,7 @@ final class TypeExtendsReader {
   }
 
   boolean isCloseable() {
-    return closeable;
+    return closeable || (baseTypeIsInterface && Constants.AUTO_CLOSEABLE.equals(baseGenericType.toString()));
   }
 
   void process(boolean forBean) {

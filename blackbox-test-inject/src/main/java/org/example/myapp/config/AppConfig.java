@@ -29,6 +29,11 @@ public class AppConfig {
     return new AppHelloData();
   }
 
+  @Bean(destroyPriority = 10)
+  AutoCloseable onShutdown() {
+    return () -> MyDestroyOrder.add("onShutdown-AutoCloseable");
+  }
+
   private static class AppHelloData implements HelloData {
 
     @Override
